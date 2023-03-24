@@ -324,22 +324,60 @@ func parseVariables(decl *ast.GenDecl, file *types.File, opt Option) (vars []typ
 				valType types.Type
 				err     error
 			)
-			if spec.Type != nil {
-				valType, iotaMark, err = parseByType(spec.Type, file, opt)
-				if err != nil {
-					return nil, fmt.Errorf("can't parse type: %v", err)
-				}
-			} else if iotaMark {
-				valType = iotaType
-			} else if i < len(spec.Values) {
-				valType, iotaMark, err = parseByValue(spec.Values[i], file, opt)
-				if err != nil {
-					return nil, fmt.Errorf("can't parse type: %v", err)
+			if iotaMark {
+				if spec.Type == nil {
+					if i < len(spec.Values) {
+						valType, _, err = parseByValue(spec.Values[i], file, opt)
+						if err != nil {
+							return nil, fmt.Errorf("can't parse value: %v", err)
+						}
+					} else if len(vars) > 0 {
+						valType = vars[0].Type
+						variable.Value = name.Obj.Data
+					} else {
+						return nil, fmt.Errorf("can't parse type: %d:%d", spec.Pos(), spec.End())
+					}
+				} else {
+					valType, _, err = parseByType(spec.Type, file, opt)
+					if err != nil {
+						return nil, fmt.Errorf("can't parse type: %v", err)
+					}
+					if i < len(spec.Values) {
+						_, _, err = parseByValue(spec.Values[i], file, opt)
+					}
+					if err != nil {
+						return nil, fmt.Errorf("can't parse value: %v", err)
+					}
 				}
 			} else {
-				return nil, fmt.Errorf("can't parse type: %d:%d", spec.Pos(), spec.End())
+				if spec.Type == nil {
+					if i < len(spec.Values) {
+						valType, iotaMark, err = parseByValue(spec.Values[i], file, opt)
+						variable.Value = spec.Values[i].(*ast.BasicLit).Value
+						if err != nil {
+							return nil, fmt.Errorf("can't parse value: %v", err)
+						}
+					} else {
+						return nil, fmt.Errorf("can't parse type: %v", err)
+					}
+				} else {
+					valType, _, err = parseByType(spec.Type, file, opt)
+					if err != nil {
+						return nil, fmt.Errorf("can't parse type: %v", err)
+					}
+					if i < len(spec.Values) {
+						_, iotaMark, err = parseByValue(spec.Values[i], file, opt)
+						if iotaMark {
+							variable.Value = name.Obj.Data
+						} else {
+							variable.Value = spec.Values[i].(*ast.BasicLit).Value
+						}
+					}
+					if err != nil {
+						return nil, fmt.Errorf("can't parse value: %v", err)
+					}
+				}
 			}
-
 			variable.Type = valType
 			vars = append(vars, variable)
 		}
@@ -491,6 +529,11 @@ func parseByValue(spec interface{}, file *types.File, opt Option) (tt types.Type
 	default:
 		return nil, false, nil
 	}
+}
+
+// parse constant or var value
+func parseValue(value *ast.BasicLit) (any, error) {
+	return value.Value, nil
 }
 
 // Collects and returns all interface methods.

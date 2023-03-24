@@ -2,7 +2,8 @@ package types
 
 type Variable struct {
 	Base
-	Type Type `json:"type,omitempty"`
+	Type  Type `json:"type,omitempty"`
+	Value any  `json:"value,omitempty"`
 }
 
 // String representation of variable without docs
